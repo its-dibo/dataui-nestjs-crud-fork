@@ -1,9 +1,9 @@
 const tsconfig = require('tsconfig-extends');
-const { pathsToModuleNameMapper } = require('ts-jest/utils');
+const { pathsToModuleNameMapper } = require('ts-jest');
 const compilerOptions = tsconfig.load_file_sync('./tsconfig.jest.json', __dirname);
 
 module.exports = {
-  setupFilesAfterEnv: ['jest-extended'],
+  setupFilesAfterEnv: ['jest-extended/all'],
   moduleNameMapper: pathsToModuleNameMapper(compilerOptions.paths, {
     prefix: '<rootDir>/packages/',
   }),
@@ -11,13 +11,9 @@ module.exports = {
   testRegex: '\\.spec.ts$',
   rootDir: '.',
   transform: {
-    '^.+\\.ts$': 'ts-jest',
+    '^.+\\.ts$': ['ts-jest', compilerOptions],
   },
-  globals: {
-    'ts-jest': {
-      tsConfig: 'tsconfig.jest.json',
-    },
-  },
+  globals: {},
   coverageReporters: ['json', 'lcov', 'text-summary'],
   coverageDirectory: 'coverage',
   collectCoverageFrom: [
