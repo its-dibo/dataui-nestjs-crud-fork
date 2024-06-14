@@ -70,6 +70,7 @@ export class CrudRoutesFactory {
     this.createRoutes(routesSchema);
     this.overrideRoutes(routesSchema);
     this.enableRoutes(routesSchema);
+    this.createCustomRoutes();
   }
 
   protected mergeOptions() {
@@ -437,20 +438,21 @@ export class CrudRoutesFactory {
     );
   }
 
-  protected setBaseRouteMeta(name: BaseRouteName) {
-    this.setRouteArgs(name);
-    this.setRouteArgsTypes(name);
-    this.setInterceptors(name);
-    this.setAction(name);
-    this.setSwaggerOperation(name);
-    this.setSwaggerPathParams(name);
-    this.setSwaggerQueryParams(name);
-    this.setSwaggerResponseOk(name);
+  // operation is used to set the proper metadata, method is used to set the metadata to the provided method
+  protected setBaseRouteMeta(operation: BaseRouteName, method?: string | symbol) {
+    this.setRouteArgs(operation, method);
+    this.setRouteArgsTypes(operation, method);
+    this.setInterceptors(operation, method);
+    this.setAction(operation, method);
+    this.setSwaggerOperation(operation, method);
+    this.setSwaggerPathParams(operation, method);
+    this.setSwaggerQueryParams(operation, method);
+    this.setSwaggerResponseOk(operation, method);
     // set decorators after Swagger so metadata can be overwritten
-    this.setDecorators(name);
+    this.setDecorators(operation, method);
   }
 
-  protected setRouteArgs(name: BaseRouteName) {
+  protected setRouteArgs(operation: BaseRouteName, method?: string | symbol) {
     let rest = {};
     const routes: BaseRouteName[] = [
       'createManyBase',
@@ -459,8 +461,8 @@ export class CrudRoutesFactory {
       'replaceOneBase',
     ];
 
-    if (isIn(name, routes)) {
-      const action = this.routeNameAction(name);
+    if (isIn(operation, routes)) {
+      const action = this.routeNameAction(operation);
       const hasDto = !isNil(this.options.dto[action]);
       const { UPDATE, CREATE } = CrudValidationGroups;
       const groupEnum = isIn(name, ['updateOneBase', 'replaceOneBase']) ? UPDATE : CREATE;
@@ -469,23 +471,27 @@ export class CrudRoutesFactory {
       rest = R.setBodyArg(1, [Validation.getValidationPipe(this.options, group)]);
     }
 
-    R.setRouteArgs({ ...R.setParsedRequestArg(0), ...rest }, this.target, name);
+    R.setRouteArgs(
+      { ...R.setParsedRequestArg(0), ...rest },
+      this.target,
+      method || operation,
+    );
   }
 
-  protected setRouteArgsTypes(name: BaseRouteName) {
+  protected setRouteArgsTypes(name: BaseRouteName, method?: string | symbol) {
     if (isEqual(name, 'createManyBase')) {
       const bulkDto = Validation.createBulkDto(this.options);
       R.setRouteArgsTypes([Object, bulkDto], this.targetProto, name);
     } else if (isIn(name, ['createOneBase', 'updateOneBase', 'replaceOneBase'])) {
       const action = this.routeNameAction(name);
       const dto = this.options.dto[action] || this.modelType;
-      R.setRouteArgsTypes([Object, dto], this.targetProto, name);
+      R.setRouteArgsTypes([Object, dto], this.targetProto, method || name);
     } else {
-      R.setRouteArgsTypes([Object], this.targetProto, name);
+      R.setRouteArgsTypes([Object], this.targetProto, method || name);
     }
   }
 
-  protected setInterceptors(name: BaseRouteName) {
+  protected setInterceptors(name: BaseRouteName, method?: string | symbol) {
     const interceptors = this.options.routes[name].interceptors;
     R.setInterceptors(
       [
@@ -493,30 +499,30 @@ export class CrudRoutesFactory {
         CrudResponseInterceptor,
         ...(isArrayFull(interceptors) ? /* istanbul ignore next */ interceptors : []),
       ],
-      this.targetProto[name],
+      this.targetProto[method || name],
     );
   }
 
-  protected setDecorators(name: BaseRouteName) {
+  protected setDecorators(name: BaseRouteName, method?: string | symbol) {
     const decorators = this.options.routes[name].decorators;
     R.setDecorators(
       isArrayFull(decorators) ? /* istanbul ignore next */ decorators : [],
       this.targetProto,
-      name,
+      method || name,
     );
   }
 
-  protected setAction(name: BaseRouteName) {
-    R.setAction(this.actionsMap[name], this.targetProto[name]);
+  protected setAction(name: BaseRouteName, method?: string | symbol) {
+    R.setAction(this.actionsMap[name], this.targetProto[method || name]);
   }
 
-  protected setSwaggerOperation(name: BaseRouteName) {
+  protected setSwaggerOperation(name: BaseRouteName, method?: string | symbol) {
     const summary = Swagger.operationsMap(this.modelName)[name];
     const operationId = name + this.targetProto.constructor.name + this.modelName;
-    Swagger.setOperation({ summary, operationId }, this.targetProto[name]);
+    Swagger.setOperation({ summary, operationId }, this.targetProto[method || name]);
   }
 
-  protected setSwaggerPathParams(name: BaseRouteName) {
+  protected setSwaggerPathParams(name: BaseRouteName, method?: string | symbol) {
     const metadata = Swagger.getParams(this.targetProto[name]);
     const withoutPrimary: BaseRouteName[] = [
       'createManyBase',
@@ -531,26 +537,63 @@ export class CrudRoutesFactory {
       .reduce((a, c) => ({ ...a, [c]: this.options.params[c] }), {});
 
     const pathParamsMeta = Swagger.createPathParamsMeta(params);
-    Swagger.setParams([...metadata, ...pathParamsMeta], this.targetProto[name]);
+    Swagger.setParams([...metadata, ...pathParamsMeta], this.targetProto[method || name]);
   }
 
-  protected setSwaggerQueryParams(name: BaseRouteName) {
+  protected setSwaggerQueryParams(name: BaseRouteName, method?: string | symbol) {
     const metadata = Swagger.getParams(this.targetProto[name]);
     const queryParamsMeta = Swagger.createQueryParamsMeta(name, this.options);
-    Swagger.setParams([...metadata, ...queryParamsMeta], this.targetProto[name]);
+    Swagger.setParams(
+      [...metadata, ...queryParamsMeta],
+      this.targetProto[method || name],
+    );
   }
 
-  protected setSwaggerResponseOk(name: BaseRouteName) {
+  protected setSwaggerResponseOk(name: BaseRouteName, method?: string | symbol) {
     const metadata = Swagger.getResponseOk(this.targetProto[name]);
     const metadataToAdd =
       Swagger.createResponseMeta(name, this.options, this.swaggerModels) ||
       /* istanbul ignore next */ {};
-    Swagger.setResponseOk({ ...metadata, ...metadataToAdd }, this.targetProto[name]);
+    Swagger.setResponseOk(
+      { ...metadata, ...metadataToAdd },
+      this.targetProto[method || name],
+    );
   }
 
   protected routeNameAction(name: BaseRouteName): string {
     return (
       name.split('OneBase')[0] || /* istanbul ignore next */ name.split('ManyBase')[0]
     );
+  }
+
+  /**
+   * set metadata for user's custom routs
+   * 1- create a custom route method
+   * 2- mark it as a custom CRUD route by adding a metadata with with one of `BaseRouteName` values
+   * 3- this method searches for user's custom routes that are marked as custom routes and set the required metadata
+   *
+   * @example
+   * ```
+   * \@crud({...})
+   * class UsersController{
+   *   constructor(...){}
+   *
+   *   \@crudRoute('getOne','/')
+   *    me(){
+   *      return this.service.getUser(req.user.id)
+   *    }
+   * }
+   * ```
+   */
+  createCustomRoutes() {
+    // get methods that has "crudRoute" metadata, them apply setBaseRouteMeta() to each one
+    Reflect.ownKeys(this.targetProto)
+      .filter((key) => typeof this.targetProto[key] === 'function')
+      .filter((key) => Reflect.hasMetadata('crudRoute', this.targetProto[key]))
+      .map((key) => ({
+        method: key,
+        operation: Reflect.getMetadata('crudRoute', this.targetProto[key]),
+      }))
+      .forEach(({ method, operation }) => this.setBaseRouteMeta(operation, method));
   }
 }

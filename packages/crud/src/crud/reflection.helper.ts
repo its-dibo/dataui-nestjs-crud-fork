@@ -83,7 +83,7 @@ export class R {
   static setDecorators(
     decorators: (PropertyDecorator | MethodDecorator)[],
     target: object,
-    name: string,
+    name: string | symbol,
   ) {
     // this makes metadata decorator works
     const decoratedDescriptor = Reflect.decorate(
@@ -118,11 +118,11 @@ export class R {
     R.set(INTERCEPTORS_METADATA, interceptors, func);
   }
 
-  static setRouteArgs(metadata: any, target: any, name: string) {
+  static setRouteArgs(metadata: any, target: any, name: string | symbol) {
     R.set(ROUTE_ARGS_METADATA, metadata, target, name);
   }
 
-  static setRouteArgsTypes(metadata: any, target: any, name: string) {
+  static setRouteArgsTypes(metadata: any, target: any, name: string | symbol) {
     R.set(PARAMTYPES_METADATA, metadata, target, name);
   }
 
