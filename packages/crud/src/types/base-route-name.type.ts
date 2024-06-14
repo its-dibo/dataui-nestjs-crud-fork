@@ -7,3 +7,13 @@ export type BaseRouteName =
   | 'replaceOneBase'
   | 'deleteOneBase'
   | 'recoverOneBase';
+
+export type RouteName =
+  | 'getMany'
+  | 'getOne'
+  | 'createOne'
+  | 'createMany'
+  | 'updateOne'
+  | 'replaceOne'
+  | 'deleteOne'
+  | 'recoverOne';

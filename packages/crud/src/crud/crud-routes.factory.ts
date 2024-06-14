@@ -590,10 +590,14 @@ export class CrudRoutesFactory {
     Reflect.ownKeys(this.targetProto)
       .filter((key) => typeof this.targetProto[key] === 'function')
       .filter((key) => Reflect.hasMetadata('crudRoute', this.targetProto[key]))
-      .map((key) => ({
-        method: key,
-        operation: Reflect.getMetadata('crudRoute', this.targetProto[key]),
-      }))
-      .forEach(({ method, operation }) => this.setBaseRouteMeta(operation, method));
+      .map((key) => {
+        let { operation, path }: { operation: string; path: string } =
+          Reflect.getMetadata('crudRoute', this.targetProto[key]);
+        return { method: key, operation, path };
+      })
+      // todo add @Get(path)
+      .forEach(({ method, operation, path }) =>
+        this.setBaseRouteMeta(<BaseRouteName>`${operation}base`, method),
+      );
   }
 }
