@@ -396,6 +396,7 @@ export class CrudRoutesFactory {
         this.setBaseRouteMeta(route.name);
       }
 
+      // add route params such as ":id"
       if (route.withParams && primaryParams.length > 0) {
         route.path =
           route.path !== '/'
