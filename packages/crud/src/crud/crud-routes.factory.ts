@@ -407,7 +407,9 @@ export class CrudRoutesFactory {
   }
 
   protected overrideRoutes(routesSchema: BaseRoute[]) {
+    // get target's methods
     getOwnPropNames(this.targetProto).forEach((name) => {
+      // @Override("getManyBase")
       const override = R.getOverrideRoute(this.targetProto[name]);
       const route = routesSchema.find((r) => isEqual(r.name, override));
 
@@ -450,6 +452,17 @@ export class CrudRoutesFactory {
     });
   }
 
+  /**
+   * handle the params that decorated with @ParsedBody()
+   * @param override the value of \@override()
+   * @param name the method's alias name
+   *
+   * @example
+   *  \@override("createOneBase")
+   *   createUser(\@parsedReq() req, \@ParsedBody() body){}
+   *   // override = "createOneBase", name="createUser"
+   *
+   */
   protected overrideParsedBodyDecorator(override: BaseRouteName, name: string) {
     const allowed = [
       'createManyBase',
@@ -457,15 +470,25 @@ export class CrudRoutesFactory {
       'updateOneBase',
       'replaceOneBase',
     ] as BaseRouteName[];
+    // routes that accepts DTO such as createManyBase(req, dto),
+    // other routes accepts "req" only
     const withBody = isIn(override, allowed);
+    // Reflect.getMetadata("NESTJSX_PARSED_BODY_METADATA",...) = { index: 0 }
+    // index: the position of the @ParsedBody() param
     const parsedBody = R.getParsedBody(this.targetProto[name]);
 
+    // if the method requires a body arg, and decorated with @ParsedBody()
     if (withBody && parsedBody) {
       const baseKey = `${RouteParamtypes.BODY}:1`;
       const key = `${RouteParamtypes.BODY}:${parsedBody.index}`;
+      // Reflect.getMetadata("__routeArguments__",...)
       const baseRouteArgs = R.getRouteArgs(this.target, override);
+      // the params list i.e. req, body
       const routeArgs = R.getRouteArgs(this.target, name);
       const baseBodyArg = baseRouteArgs[baseKey];
+      // add baseRouteArgs (got from baseKey key) with the index to key prop
+      // Reflect.defineMetadata("__routeArguments__", ...)
+      // new metadata = { [baseKey]: { baseBodyArg }, [key]: { ...baseBodyArg, index } }
       R.setRouteArgs(
         {
           ...routeArgs,
@@ -480,14 +503,17 @@ export class CrudRoutesFactory {
 
       /* istanbul ignore else */
       if (isEqual(override, 'createManyBase')) {
+        // Reflect.getMetaData("design:paramtype")
         const paramTypes = R.getRouteArgsTypes(this.targetProto, name);
         const metatype = paramTypes[parsedBody.index];
         const types = [String, Boolean, Number, Array, Object];
+        // copy paramTypes from the method $name to $override
         const toCopy =
           isIn(metatype, types) || /* istanbul ignore next */ isNil(metatype);
 
         /* istanbul ignore else */
         if (toCopy) {
+          // "design:paramtype"
           const baseParamTypes = R.getRouteArgsTypes(this.targetProto, override);
           const baseMetatype = baseParamTypes[1];
           paramTypes.splice(parsedBody.index, 1, baseMetatype);
