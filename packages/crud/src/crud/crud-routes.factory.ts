@@ -560,6 +560,10 @@ export class CrudRoutesFactory {
     R.setRouteArgs({ ...R.setParsedRequestArg(0), ...rest }, this.target, name);
   }
 
+  /**
+   * inject route params i.e. createManyBase(@Req() req, dto)
+   * @param name route name
+   */
   protected setRouteArgsTypes(name: BaseRouteName) {
     if (isEqual(name, 'createManyBase')) {
       const bulkDto = Validation.createBulkDto(this.options);
@@ -569,6 +573,9 @@ export class CrudRoutesFactory {
       const dto = this.options.dto[action] || this.modelType;
       R.setRouteArgsTypes([Object, dto], this.targetProto, name);
     } else {
+      // Reflect.defineMetadata("design:paramtypes", [Request], this.targetProto, name)
+      // or use [Object] instead of [Request] and set Ts type in the method, i,e, getOneBase(req: FastifyRequest){}
+      // here we inject `CrudRequest` which parses the request
       R.setRouteArgsTypes([Object], this.targetProto, name);
     }
   }
