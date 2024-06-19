@@ -406,15 +406,27 @@ export class CrudRoutesFactory {
     });
   }
 
+  /**
+   * handel override method, i.e ,methods that decorated with \@override()
+   * the metadata is copied from the override method (the custom method) into the corresponding method
+   * @param routesSchema
+   */
   protected overrideRoutes(routesSchema: BaseRoute[]) {
     // get target's methods
     getOwnPropNames(this.targetProto).forEach((name) => {
-      // @Override("getManyBase")
+      // value of @Override("getManyBase")
       const override = R.getOverrideRoute(this.targetProto[name]);
+      // get route schema that its name matches the value of @Override()
       const route = routesSchema.find((r) => isEqual(r.name, override));
 
       if (override && route && route.enable) {
-        // get metadata
+        // get metadata of both the original method and the override method
+        // then merge them and add the merged metadata to the original method
+        // example:
+        //   @Override("getManyBase")
+        //   @interceptors([...])
+        //   aliasMethod(){}
+        // this adds custom interceptors to the original getManyBase()
         const interceptors = R.getInterceptors(this.targetProto[name]);
         const baseInterceptors = R.getInterceptors(this.targetProto[override]);
         const baseAction = R.getAction(this.targetProto[override]);
@@ -454,7 +466,7 @@ export class CrudRoutesFactory {
 
   /**
    * handle the params that decorated with @ParsedBody()
-   * @param override the value of \@override()
+   * @param override the value of \@override(), i.e. the original route name, such as getMany
    * @param name the method's alias name
    *
    * @example
@@ -473,22 +485,30 @@ export class CrudRoutesFactory {
     // routes that accepts DTO such as createManyBase(req, dto),
     // other routes accepts "req" only
     const withBody = isIn(override, allowed);
-    // Reflect.getMetadata("NESTJSX_PARSED_BODY_METADATA",...) = { index: 0 }
+    // Reflect.getMetadata("NESTJSX_PARSED_BODY_METADATA",...)
+    // = { index: 0 }
     // index: the position of the @ParsedBody() param
     const parsedBody = R.getParsedBody(this.targetProto[name]);
 
     // if the method requires a body arg, and decorated with @ParsedBody()
     if (withBody && parsedBody) {
+      // "0:1", the first part is the paramType (0 is Body()), the second part is param position
+      // the second param of the route method is the DTO, such as getManyBase(req, @ParsedBody() dto)
+      // so e need to copy the metadata from the custom "NESTJSX_PARSED_BODY_METADATA" into the second prop of "__routeArguments__"
+      // the metadata "__routeArguments__" stores info about the route method's params,
+      // and "design:paramtypes" stores info about the DI such as `@Req() req: any`
       const baseKey = `${RouteParamtypes.BODY}:1`;
+      // "0:0"
       const key = `${RouteParamtypes.BODY}:${parsedBody.index}`;
       // Reflect.getMetadata("__routeArguments__",...)
       const baseRouteArgs = R.getRouteArgs(this.target, override);
       // the params list i.e. req, body
       const routeArgs = R.getRouteArgs(this.target, name);
       const baseBodyArg = baseRouteArgs[baseKey];
-      // add baseRouteArgs (got from baseKey key) with the index to key prop
-      // Reflect.defineMetadata("__routeArguments__", ...)
-      // new metadata = { [baseKey]: { baseBodyArg }, [key]: { ...baseBodyArg, index } }
+      // add baseRouteArgs (got from baseKey prop) with the index to key prop
+      // metadata = { [baseKey]: { baseBodyArg }, [key]: { ...baseBodyArg, index } }
+      // i.e. { "0:1": { baseBodyArg }, "0:0": { ...baseBodyArg, index } }
+      // Reflect.defineMetadata("__routeArguments__", metadata)
       R.setRouteArgs(
         {
           ...routeArgs,
@@ -503,6 +523,9 @@ export class CrudRoutesFactory {
 
       /* istanbul ignore else */
       if (isEqual(override, 'createManyBase')) {
+        // get the metadata of the method's params
+        // contains the index and data (if any) of each param
+        // the data is the type of the param
         // Reflect.getMetaData("design:paramtype")
         const paramTypes = R.getRouteArgsTypes(this.targetProto, name);
         const metatype = paramTypes[parsedBody.index];
@@ -513,10 +536,13 @@ export class CrudRoutesFactory {
 
         /* istanbul ignore else */
         if (toCopy) {
-          // "design:paramtype"
+          // get metadata "design:paramtype"
           const baseParamTypes = R.getRouteArgsTypes(this.targetProto, override);
           const baseMetatype = baseParamTypes[1];
+          // replaces the value of parsedBody.index with baseMetatype
+          // Array.splice(idx, count, ...items) removes $count elements starting from $idx and adds the provided items
           paramTypes.splice(parsedBody.index, 1, baseMetatype);
+          // add metadata "design:paramtypes"
           R.setRouteArgsTypes(paramTypes, this.targetProto, name);
         }
       }
@@ -580,6 +606,7 @@ export class CrudRoutesFactory {
       const groupEnum = isIn(name, ['updateOneBase', 'replaceOneBase']) ? UPDATE : CREATE;
       const group = !hasDto ? groupEnum : undefined;
 
+      // add Validation pipes metadata to the second param i.e. where index=1
       rest = R.setBodyArg(1, [Validation.getValidationPipe(this.options, group)]);
     }
 
@@ -587,7 +614,7 @@ export class CrudRoutesFactory {
   }
 
   /**
-   * inject route params i.e. createManyBase(@Req() req, dto)
+   * inject route params i.e. createManyBase(@ParsedReq() req, @ParsedBody() dto)
    * @param name route name
    */
   protected setRouteArgsTypes(name: BaseRouteName) {
